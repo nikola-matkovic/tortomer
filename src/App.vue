@@ -5,7 +5,7 @@ import { computed, onMounted, ref, watch } from 'vue';
 const newIngredient = ref("")
 
 const recipes = ref([])
-const solution = ref([])
+const solution = ref(null)
 
 const creatingNewRecipe = ref(false)
 const activeRecipeId = ref(null)
@@ -13,27 +13,50 @@ const screen = ref("selector")
 
 
 const activeRecipe = computed(() => {
-  return recipes.value.find(r => r.id === activeRecipeId.value)
-})
-
-const activeRecipeMass = computed(() => {
-
-
-  console.log(activeRecipe);
-
-
-  const masses = activeRecipe.value?.ingredients?.map(i => i.ingredientMass || 0)
-
-
-  return masses?.reduce( (acc, curr) => acc + curr, 0 )
+  const recipe =  recipes.value.find(r => r.id === activeRecipeId.value)
+  return recipe;
 })
 
 class Recipe {
-  constructor() {
-    this.id = Date.now();
-    this.name = ""
-    this.ingredients = []
+  constructor(minimalObject = "") {
+
+    if(minimalObject === ""){
+      this.id = Date.now();
+      this.name = ""
+      this.ingredients = []
+    }
+
+    else{
+      this.name = minimalObject.name;
+      this.id = minimalObject.id
+      this.ingredients = minimalObject.ingredients.map(ing => new Ingredient(ing))
+    }
+
   }
+
+  addIngredient(ingredient){
+    this.ingredients.push(ingredient)
+  }
+
+  removeIngredient(i){
+    this.ingredients = this.ingredients.filter((_, index) => i != index)
+  }
+
+  getMass(){
+    const masses = this.ingredients?.map(i => i.ingredientMass || 0)
+    return masses?.reduce( (acc, curr) => acc + curr, 0 )
+  }
+
+  getMinimalObject(){
+    let obj =  {
+      name: this.name,
+      id: this.id,
+      ingredients: this.ingredients.map(i => i.textFormat)
+    }
+
+    return obj
+  }
+
 }
 
 
@@ -137,8 +160,8 @@ class Ingredient {
       butter: ["puter", "putera", "maslac", "maslaca"],
       oil: ["ulje", "ulja"],
       egg: ["jaje", "jaja"],
-      egg_white: ["belance", "belanca"],
-      egg_yolk: ["žumance", "žumanca", "zumance", "zumanca"],
+      egg_white: ["belance", "belanca", "belanaca"],
+      egg_yolk: ["žumance", "žumanca", "zumance", "zumanca", "žumanaca", "zumanaca"],
       yogurt: ["jogurt", "jogurta"],
       sour_cream: ["pavlaka", "pavlake"],
       whipping_cream: ["slatka pavlaka", "slatke pavlake"],
@@ -194,10 +217,6 @@ class Ingredient {
 
   static convertToGrams(quantity, unitType, ingredient) {
 
-
-    console.log("getting", {quantity, unitType, ingredient});
-
-
     if (quantity == null) return null;
 
     // mass units
@@ -236,20 +255,16 @@ function addIngredient() {
 
   const ingredient = new Ingredient(newIngredient.value)
 
-  console.log("added", ingredient)
-
-  activeRecipe.value.ingredients.push(ingredient)
+  activeRecipe.value.addIngredient(ingredient)
   newIngredient.value = ""
 
-  localStorage.setItem("recipe", JSON.stringify(recipes.value))
-
+  localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
 }
 
-function removeItem(i) {
-  activeRecipe.value.ingredients = activeRecipe.value.ingredients.filter((_, index) => i != index)
+function removeIngredient(i) {
+  activeRecipe.value.removeIngredient(index);
 
-  localStorage.setItem("recipe", JSON.stringify(recipes.value))
-
+  localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
 }
 
 function multiplyNumberInString(text, multiplier) {
@@ -265,12 +280,14 @@ function multiplyNumberInString(text, multiplier) {
 
 function showSolution(multiplier) {
 
-  solution.value = []
+  const newRecipe = new Recipe()
 
   activeRecipe.value.ingredients.forEach(item => {
     const transformedString = multiplyNumberInString(item.textFormat, multiplier)
-    solution.value.push(transformedString)
+    newRecipe.ingredients.push(new Ingredient(transformedString))
   })
+
+  solution.value = newRecipe
 }
 
 function addNewRecipe() {
@@ -285,7 +302,7 @@ function addNewRecipe() {
 
 function finishRecipe(){
   creatingNewRecipe.value = false;
-  activeRecipeId.value = null
+  screen.value = "recipe"
 }
 
 function showRecipe(id){
@@ -298,7 +315,7 @@ function changeScreen(s){
   screen.value = s;
   activeRecipeId.value = null
 
-  solution.value = []
+  solution.value = null
 }
 
 onMounted(() => {
@@ -306,7 +323,13 @@ onMounted(() => {
 
   if (!local || local === "null") return;
 
-  recipes.value = JSON.parse(local);
+  let localArray = JSON.parse(local);
+
+  localArray.forEach(r => {
+
+    const recipe = new Recipe(r)
+    recipes.value.push(recipe)
+  })
 })
 
 </script>
@@ -316,7 +339,6 @@ onMounted(() => {
 
 
   <template v-if="screen === 'selector'">
-
 
 
     <div class="buttons" v-if="!creatingNewRecipe">
@@ -334,24 +356,7 @@ onMounted(() => {
         <input placeholder="Ime torte" type="text" v-model="activeRecipe.name">
       </section>
 
-      <section class="input-box">
-        <input type="text" v-model="newIngredient" @keyup.enter="addIngredient"> <button
-          @click="addIngredient">+</button>
-      </section>
-
-      <section class="recipe">
-        <div v-for="(item, index) in activeRecipe.ingredients" class="recipe-item item">
-
-          <div class="item-text">
-            {{ item.textFormat }}
-          </div>
-
-          <button @click="removeItem(index)">x</button>
-        </div>
-
-
-        <button @click="finishRecipe">Gotovo</button>
-      </section>
+      <button @click="finishRecipe">Dodaj sastojke</button>
 
     </div>
 
@@ -370,14 +375,14 @@ onMounted(() => {
       <div v-for="(item, index) in activeRecipe.ingredients" class="recipe-item item">
 
         <div class="item-text">
-          {{ item.textFormat }} --- {{ item.ingredientMass}}
+          {{ item.textFormat }} --- {{ item.ingredientMass}}g
         </div>
 
-        <button @click="removeItem(index)">x</button>
+        <button @click="removeIngredient(index)">x</button>
       </div>
 
 
-      {{ activeRecipeMass }} g
+      {{ activeRecipe?.getMass() }} g
 
     </section>
 
@@ -395,13 +400,15 @@ onMounted(() => {
       <button class="button" @click="showSolution(4)">X4 4 puta više</button>
     </section>
 
-    <section class="solution">
-      <div v-for="item in solution" class="solution-item item">
-
+    <section class="solution" v-if="solution">
+      <div v-for="item in solution.ingredients" class="solution-item item">
         <div class="item-text">
-          {{ item }}
+          {{ item.textFormat }} --- {{ item.ingredientMass}}g
         </div>
       </div>
+
+      {{ solution?.getMass() }} g
+
     </section>
 
 
