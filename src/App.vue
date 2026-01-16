@@ -2,7 +2,7 @@
 
 import { computed, onMounted, ref, watch } from 'vue';
 
-const newIngredient = ref("")
+const newIngredientInputValue = ref("")
 
 const recipes = ref([])
 const solution = ref(null)
@@ -10,7 +10,7 @@ const solution = ref(null)
 const creatingNewRecipe = ref(false)
 const activeRecipeId = ref(null)
 const screen = ref("selector")
-
+const inputMethod = ref("one-by-one")
 
 const activeRecipe = computed(() => {
   const recipe =  recipes.value.find(r => r.id === activeRecipeId.value)
@@ -44,7 +44,7 @@ class Recipe {
 
   getMass(){
     const masses = this.ingredients?.map(i => i.ingredientMass || 0)
-    return masses?.reduce( (acc, curr) => acc + curr, 0 )
+    return masses?.reduce( (acc, curr) => acc + curr, 0 ) / 1000
   }
 
   getMinimalObject(){
@@ -55,6 +55,17 @@ class Recipe {
     }
 
     return obj
+  }
+
+  ingredientsToTextarea(){
+    const ingredientPlainTextArray = this.ingredients.map(i => i.textFormat )
+    const ingredientsTextWithNewLines = ingredientPlainTextArray.join("\n")
+    return ingredientsTextWithNewLines
+  }
+
+
+  removeAllIngredients() {
+    this.ingredients = []
   }
 
 }
@@ -69,12 +80,14 @@ class Ingredient {
     this.quantity = Ingredient.getQuantity(text);
     this.normalizedIngredientName = Ingredient.normalizeIngredientName(this.ingredientText)
     this.ingredientMass = Ingredient.convertToGrams(this.quantity, this.unitType, this.normalizedIngredientName);
+    this.isHeader = text.endsWith(":"); // Fil: , Kora1:
   }
 
   static getUnitType(text) {
     const number = "\\d+(?:[.,]\\d+)?";
 
     const regexMl = new RegExp(`\\b${number}\\s*(ml|mililit(ar|ra|ara))\\b`, "i");
+    const regexDl = new RegExp(`\\b${number}\\s*(dl|decilit(ar|ra|ara))\\b`, "i");
     const regexL  = new RegExp(`\\b${number}\\s*(l|lit(ar|ra|ara))\\b`, "i");
     const regexG  = new RegExp(`\\b${number}\\s*(g|gram(a|i)?)\\b`, "i");
     const regexKg = new RegExp(`\\b${number}\\s*(kg|kilogram(a|i)?)\\b`, "i");
@@ -91,12 +104,26 @@ class Ingredient {
       "i"
     );
 
+    // cup
+    const regexCup = new RegExp(
+      `\\b${number}\\s*(šolj(a|e|i)?|solj(a|e|i)?)\\b`,
+      "i"
+    );
+
+    const regexSmallCup = new RegExp(
+      `\\b${number}\\s*(šoljic(a|e)?|soljic(a|e)?)\\b`,
+      "i"
+    );
+
     if (regexMl.test(text)) return "ml";
+    if (regexDl.test(text)) return "dl";
     if (regexL.test(text))  return "l";
     if (regexKg.test(text)) return "kg";
     if (regexG.test(text))  return "g";
     if (regexTablespoon.test(text)) return "tbsp";
     if (regexTeaspoon.test(text))   return "tsp";
+    if (regexCup.test(text)) return "cup";
+    if (regexSmallCup.test(text)) return "smallCup";
 
     return null;
   }
@@ -118,11 +145,28 @@ class Ingredient {
   }
 
   static getQuantity(text) {
-    const match = text.match(/\d+(?:[.,]\d+)?/);
-    if (!match) return null;
+    if (!text) return null;
 
-    return Number(match[0].replace(",", "."));
+    // 1️⃣ Pokušaj razlomak tipa "1/2", "3/4"
+    const fractionRegex = /(\d+)\s*\/\s*(\d+)/;
+    let match = text.match(fractionRegex);
+    if (match) {
+      const numerator = Number(match[1]);
+      const denominator = Number(match[2]);
+      return numerator / denominator;
+    }
+
+    // 2️⃣ Decimalni ili ceo broj "1.5", "2", "2,5"
+    const decimalRegex = /\d+(?:[.,]\d+)?/;
+    match = text.match(decimalRegex);
+    if (match) {
+      return Number(match[0].replace(",", "."));
+    }
+
+    // 3️⃣ ništa nije pronađeno
+    return null;
   }
+
 
   static spoonToMl(quantity, unitType) {
     if (unitType === "tbsp") return quantity * 15;
@@ -130,6 +174,11 @@ class Ingredient {
     return null;
   }
 
+  static cupToMl(quantity, unitType){
+    if (unitType === "cup") return quantity * 200;
+    if (unitType === "smallCup") return quantity * 50;
+    return null;
+  }
 
   static getCountBasedWeight(ingredientKey) {
     const weights = {
@@ -168,24 +217,43 @@ class Ingredient {
       cocoa: ["kakao", "kakaoa", "kakaa"],
       honey: ["med", "meda"],
       salt: ["so", "soli"],
-      powdered_sugar: ["šećer u prahu", "secer u prahu", "secera u prahu", "šećera u prahu", "prah šećer", "prah šećera", "prah secer", "prah secera"],
+      powdered_sugar: [
+        "šećer u prahu", "secer u prahu",
+        "šećera u prahu", "secera u prahu",
+        "prah šećer", "prah šećera",
+        "prah secer", "prah secera"
+      ],
       banana: ["banana", "banane"],
       apple: ["jabuka", "jabuke"],
       lemon: ["limun", "limuna"],
       orange: ["pomorandža", "narandža", "pomorandže", "narandže"],
       vanilla_pod: ["vanila", "vanilija"],
       yeast_cube: ["kvasac", "kvasca"],
+      rum: ["rum", "ruma"]
     };
 
-    for (const key in map) {
-      if (map[key].some(v => t.includes(v))) {
+    // 1. Flatten + sort by phrase length (DESC)
+    const entries = Object.entries(map)
+      .flatMap(([key, values]) =>
+        values.map(v => ({ key, value: v }))
+      )
+      .sort((a, b) => b.value.length - a.value.length);
+
+    // 2. Unicode-aware "whole word / phrase" regex
+    for (const { key, value } of entries) {
+      const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      const regex = new RegExp(
+        `(^|[^\\p{L}])${escaped}([^\\p{L}]|$)`,
+        "iu"
+      );
+
+      if (regex.test(t)) {
         return key;
       }
     }
 
     return text;
   }
-
 
   static getDensity(ingredientKey) {
     const densities = {
@@ -209,6 +277,7 @@ class Ingredient {
       coconut: 0.35,
       hazelnut: 0.6,
       salt: 1.2,
+      rum: 0.94,
     };
 
     return densities[ingredientKey] ?? null;
@@ -227,10 +296,15 @@ class Ingredient {
     let ml = null;
 
     if (unitType === "ml") ml = quantity;
+    if(unitType === "dl") ml = quantity * 100;
     if (unitType === "l") ml = quantity * 1000;
 
     if (unitType === "tbsp" || unitType === "tsp") {
       ml = Ingredient.spoonToMl(quantity, unitType);
+    }
+
+    if(unitType === "cup" || unitType === "smallCup"){
+      ml = Ingredient.cupToMl(quantity)
     }
 
     // VOLUME BASED
@@ -251,18 +325,100 @@ class Ingredient {
   }
 }
 
+function addSingleIngredient(plainTextIngredient) {
+  if (!plainTextIngredient) return;
+
+  const text = plainTextIngredient;
+
+  const DASH_REGEX = /[-–—−]/;
+
+  // 1. Pronađi opsege zagrada
+  const parenthesesRanges = [];
+  const stack = [];
+
+  for (let i = 0; i < text.length; i++) {
+    if (text[i] === "(") stack.push(i);
+    if (text[i] === ")" && stack.length) {
+      parenthesesRanges.push([stack.pop(), i]);
+    }
+  }
+
+  const isInsideParentheses = index =>
+    parenthesesRanges.some(([s, e]) => index > s && index < e);
+
+  // 2. Pronađi brojeve (uključujući razlomke)
+  const numberRegex = /\d+\/\d+|\d+(?:[.,]\d+)?/g;
+
+  const matches = [...text.matchAll(numberRegex)].filter(m => {
+    const idx = m.index;
+    const len = m[0].length;
+
+    // ❌ broj u zagradi
+    if (isInsideParentheses(idx)) return false;
+
+    // okolina broja
+    const before = text.slice(Math.max(0, idx - 2), idx);
+    const after = text.slice(idx + len, idx + len + 2);
+
+    // ❌ deo raspona (100-150, 100–150, 100−150)
+    if (DASH_REGEX.test(before) || DASH_REGEX.test(after)) {
+      return false;
+    }
+
+    return true;
+  });
+
+  // 3. Ako nema validnih brojeva → ceo string je jedan sastojak
+  if (matches.length === 0) {
+    activeRecipe.value.addIngredient(
+      new Ingredient(text.trim())
+    );
+    return;
+  }
+
+  // 4. Iseci od broja do sledećeg validnog broja
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index;
+    const end = matches[i + 1]?.index ?? text.length;
+
+    const part = text.slice(start, end).trim();
+
+    if (part) {
+      activeRecipe.value.addIngredient(
+        new Ingredient(part)
+      );
+    }
+  }
+}
+
+
 function addIngredient() {
 
-  const ingredient = new Ingredient(newIngredient.value)
 
-  activeRecipe.value.addIngredient(ingredient)
-  newIngredient.value = ""
+  if(inputMethod.value === "one-by-one"){
+    addSingleIngredient(newIngredientInputValue.value)
+    newIngredientInputValue.value = ""
+  }
+
+  if(inputMethod.value === "all-in-one"){
+    const ingredientPlainTextsArray = newIngredientInputValue.value.trim().split("\n")
+
+    activeRecipe.value.removeAllIngredients()
+
+    ingredientPlainTextsArray.forEach(ing => {
+
+      if(ing) addSingleIngredient(ing)
+    })
+
+  }
 
   localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
 }
 
-function removeIngredient(i) {
+function removeIngredient(index) {
   activeRecipe.value.removeIngredient(index);
+
+   newIngredientInputValue.value = activeRecipe.value.ingredientsToTextarea()
 
   localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
 }
@@ -312,10 +468,24 @@ function showRecipe(id){
 }
 
 function changeScreen(s){
+  inputMethod.value = "one-by-one"
   screen.value = s;
   activeRecipeId.value = null
+  newIngredientInputValue.value = ""
 
   solution.value = null
+}
+
+function selectInputType(inputType){
+  inputMethod.value = inputType
+
+
+  if(inputType === "all-in-one"){
+    newIngredientInputValue.value = activeRecipe.value.ingredientsToTextarea()
+  }
+  else if(inputType === "one-by-one"){
+    newIngredientInputValue.value = ""
+  }
 }
 
 onMounted(() => {
@@ -332,10 +502,20 @@ onMounted(() => {
   })
 })
 
+
+function deleteRecipe(){
+  recipes.value = recipes.value.filter(recipe => recipe.id !== activeRecipe.value.id);
+  changeScreen("selector")
+  localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
+}
+
 </script>
 
 <template>
-  <h1>Tortomer</h1> <h2 v-if="activeRecipe?.name">{{activeRecipe.name}} </h2>
+
+  <h1>Tortomer</h1> <h2 v-if="activeRecipe?.name">{{activeRecipe.name}}  <button @click="deleteRecipe" class="button button-danger">Obriši</button>
+    <button @click="changeScreen('selector')">Nazad na recepte</button>
+  </h2>
 
 
   <template v-if="screen === 'selector'">
@@ -366,23 +546,47 @@ onMounted(() => {
 
   <template v-else-if="screen === 'recipe'">
 
-    <section class="input-box">
-      <input type="text" v-model="newIngredient" @keyup.enter="addIngredient"> <button @click="addIngredient">+</button>
-    </section>
+    <div class="tabs">
+      <div class="tab" @click="selectInputType('one-by-one')" :class="{ selected: inputMethod === 'one-by-one'}">Jedan po jedan sastojak</div>
+      <div class="tab" @click="selectInputType('all-in-one')" :class="{ selected: inputMethod === 'all-in-one'}">Ceo recept odjedanput</div>
+    </div>
 
+    <section class="input-box" :class="inputMethod">
+
+      <template v-if="inputMethod === 'one-by-one'">
+        <input  type="text" v-model="newIngredientInputValue" @keyup.enter="addIngredient" /> <button @click="addIngredient">+</button>
+      </template>
+
+
+      <template v-if="inputMethod === 'all-in-one'">
+        <textarea type="text" v-model="newIngredientInputValue"> {{ activeRecipe.ingredientsToTextarea() }} </textarea> <button @click="addIngredient">Gotovo</button>
+      </template>
+
+    </section>
 
     <section class="recipe">
       <div v-for="(item, index) in activeRecipe.ingredients" class="recipe-item item">
 
-        <div class="item-text">
-          {{ item.textFormat }} --- {{ item.ingredientMass}}g
-        </div>
 
-        <button @click="removeIngredient(index)">x</button>
+        <template v-if="!item.isHeader">
+          <div class="item-text">
+            {{ item.textFormat }} <span v-if="item.ingredientMass">  ~ {{ item.ingredientMass }}g</span>
+          </div>
+
+          <button @click="removeIngredient(index)">x</button>
+        </template>
+
+
+
+        <template v-else>
+          <h3>{{ item.textFormat }}</h3>
+        </template>
+
+
       </div>
 
 
-      {{ activeRecipe?.getMass() }} g
+      {{ activeRecipe?.getMass() }} kg
 
     </section>
 
@@ -402,18 +606,28 @@ onMounted(() => {
 
     <section class="solution" v-if="solution">
       <div v-for="item in solution.ingredients" class="solution-item item">
-        <div class="item-text">
-          {{ item.textFormat }} --- {{ item.ingredientMass}}g
-        </div>
+
+
+        <template v-if="!item.isHeader">
+          <div class="item-text">
+            {{ item.textFormat }} <span v-if="item.ingredientMass">  ~ {{ item.ingredientMass }}g</span>
+          </div>
+
+          <button @click="removeIngredient(index)">x</button>
+        </template>
+
+
+
+        <template v-else>
+          <h3>{{ item.textFormat }}</h3>
+        </template>
+
+
       </div>
 
-      {{ solution?.getMass() }} g
+      {{ solution?.getMass() }} kg
 
     </section>
-
-
-    <button @click="changeScreen('selector')">Nazad na recepte</button>
-
   </template>
 
 
@@ -513,10 +727,63 @@ input:focus-visible {
 
 .recipe-card{
   height: 40px;
-  border: 1px solid #EA4C89;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: .5rem;
 }
+
+.tabs{
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 2px;
+  margin-bottom: 1rem;
+}
+
+.tabs .tab {
+  border: 1px solid #F082AC;
+  border-radius: .5rem;
+  padding: 1rem;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+
+.tabs .tab.selected {
+  background-color: #EA4C89;
+}
+
+.tabs .tab:hover:not(.tab.selected){
+  background-color: #EA4C89;
+}
+
+textarea {
+  display: block;
+  height: 100px;
+  font-size: 1rem;
+  margin-block: 1rem;
+  padding-block: .5rem;
+
+  border: 0;
+  outline: 1px solid gray;
+  border-radius: .5rem;
+  padding-inline-start: .5rem;
+}
+
+.all-in-one{
+  flex-direction: column;
+}
+
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+#app {
+  padding: .5rem;
+}
+
 </style>
