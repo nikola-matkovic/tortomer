@@ -147,20 +147,34 @@ class Ingredient {
   static getQuantity(text) {
     if (!text) return null;
 
+
+
+    const openParenthesesIndex = text.indexOf("(")
+    const closeParenthesesIndex = text.indexOf(")")
+
+    const isInsideParentheses = (index) => {
+      return index > openParenthesesIndex && index < closeParenthesesIndex
+    }
+
     // 1️⃣ Pokušaj razlomak tipa "1/2", "3/4"
     const fractionRegex = /(\d+)\s*\/\s*(\d+)/;
     let match = text.match(fractionRegex);
+
     if (match) {
-      const numerator = Number(match[1]);
-      const denominator = Number(match[2]);
-      return numerator / denominator;
+      if(!isInsideParentheses(match.index)){
+        const numerator = Number(match[1]);
+        const denominator = Number(match[2]);
+        return numerator / denominator;
+      }
     }
 
     // 2️⃣ Decimalni ili ceo broj "1.5", "2", "2,5"
     const decimalRegex = /\d+(?:[.,]\d+)?/;
     match = text.match(decimalRegex);
     if (match) {
-      return Number(match[0].replace(",", "."));
+      if(!isInsideParentheses(match.index)){
+        return Number(match[0].replace(",", "."));
+      }
     }
 
     // 3️⃣ ništa nije pronađeno
@@ -518,7 +532,7 @@ function deleteRecipe(){
   </h2>
 
 
-  <template v-if="screen === 'selector'">
+  <div v-if="screen === 'selector'" class="selector">
 
 
     <div class="buttons" v-if="!creatingNewRecipe">
@@ -541,7 +555,7 @@ function deleteRecipe(){
     </div>
 
 
-  </template>
+  </div>
 
 
   <template v-else-if="screen === 'recipe'">
@@ -597,6 +611,9 @@ function deleteRecipe(){
       <button class="button" @click="showSolution(0.5)">1/2 Pola</button>
       <button class="button" @click="showSolution(0.66666666)">2/3 Dve trećine</button>
       <button class="button" @click="showSolution(0.75)">3/4 Tri četvrtine</button>
+      <button class="button" @click="showSolution(1.25)">1 1/4 (1 + jedna četvrtina)
+
+      </button>
       <button class="button" @click="showSolution(1.5)">1.5x Pola više</button>
       <button class="button" @click="showSolution(2)">X2 Duplo</button>
       <button class="button" @click="showSolution(2.5)">X2.5 2 Ipo puta više</button>
@@ -784,6 +801,26 @@ textarea {
 
 #app {
   padding: .5rem;
+}
+
+
+.selector .buttons {
+
+
+  display: flex;
+  flex-direction: column;
+  justify-content: start;
+  align-items: start;
+  gap: .5rem;
+
+}
+
+.selector .buttons > * {
+
+  border-radius: .5rem;
+  padding: .5rem;
+  border: 1px solid #F082AC;
+
 }
 
 </style>
