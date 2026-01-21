@@ -1,6 +1,7 @@
 <script setup>
 
 import { computed, onMounted, ref, watch } from 'vue';
+import { createWorker } from 'tesseract.js';
 
 const newIngredientInputValue = ref("")
 
@@ -406,8 +407,20 @@ function addSingleIngredient(plainTextIngredient) {
 }
 
 
-function addIngredient() {
+function normalizeRecipeOCR(text) {
+  return text
+    // 4jaja → 4 jaja, 250g → 250 g
+    .replace(/(?<=\d)(?=[A-Za-zČĆŽŠĐčćžšđ])/g, " ")
 
+    // ukloni sve što nije "naše"
+    .replace(/[^A-Za-zČĆŽŠĐčćžšđ0-9.,\-(): \n\r]/g, "")
+
+    // normalizuj razmake
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+async function addIngredient(fileEvent = null) {
 
   if(inputMethod.value === "one-by-one"){
     addSingleIngredient(newIngredientInputValue.value)
@@ -423,7 +436,46 @@ function addIngredient() {
 
       if(ing) addSingleIngredient(ing)
     })
+  }
 
+
+  if (inputMethod.value === "image") {
+    const file = fileEvent.target.files[0];
+
+    // Kreiramo workera sa definisanim lokalnim putanjama
+    const worker = await createWorker(["hrv", "eng", "bos"], 1, {
+      workerPath: '/tesseract/worker.min.js',
+      corePath: '/tesseract/tesseract-core.wasm.js',
+      langPath: '/tesseract/tessdata',
+      gzip: false,
+      // logger: m => console.log(m),
+    });
+
+    // await worker.setParameters({
+    //   tessedit_char_whitelist:
+    //     "ABCDEFGHIJKLMNOPQRSTUVWXYZ" +
+    //     "abcdefghijklmnopqrstuvwxyz" +
+    //     "ČĆŽŠĐčćžšđ" +
+    //     "0123456789" +
+    //     ".,-(): ",
+    // });
+
+    try {
+      const data = await worker.recognize(file);
+
+      console.log(data)
+
+      const text = data.data.text
+
+      const newText = normalizeRecipeOCR(text)
+
+      inputMethod.value = "all-in-one";
+      newIngredientInputValue.value = newText
+
+      await worker.terminate();
+    } catch (err) {
+      console.error("Greška pri čitanju:", err);
+    }
   }
 
   localStorage.setItem("recipe", JSON.stringify(recipes.value.map(recipe => recipe.getMinimalObject())))
@@ -500,6 +552,9 @@ function selectInputType(inputType){
   else if(inputType === "one-by-one"){
     newIngredientInputValue.value = ""
   }
+  else if(inputType === "image"){
+    newIngredientInputValue.value = null
+  }
 }
 
 onMounted(() => {
@@ -563,6 +618,7 @@ function deleteRecipe(){
     <div class="tabs">
       <div class="tab" @click="selectInputType('one-by-one')" :class="{ selected: inputMethod === 'one-by-one'}">Jedan po jedan sastojak</div>
       <div class="tab" @click="selectInputType('all-in-one')" :class="{ selected: inputMethod === 'all-in-one'}">Ceo recept odjedanput</div>
+      <div class="tab" @click="selectInputType('image')" :class="{ selected: inputMethod === 'image'}">Slika</div>
     </div>
 
     <section class="input-box" :class="inputMethod">
@@ -572,9 +628,14 @@ function deleteRecipe(){
       </template>
 
 
-      <template v-if="inputMethod === 'all-in-one'">
+      <template v-else-if="inputMethod === 'all-in-one'">
         <textarea type="text" v-model="newIngredientInputValue"> {{ activeRecipe.ingredientsToTextarea() }} </textarea> <button @click="addIngredient">Gotovo</button>
       </template>
+
+      <template v-else-if="inputMethod === 'image'">
+        <input type="file" name="file" id="file" @change="addIngredient">
+      </template>
+
 
     </section>
 
