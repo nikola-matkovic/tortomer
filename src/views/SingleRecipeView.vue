@@ -21,30 +21,30 @@ const inputMethod = ref("one-by-one")
 
 function addIngredient() {
 
-  if(inputMethod.value === "one-by-one"){
+  if (inputMethod.value === "one-by-one") {
     store.activeRecipe.updateIngredients(newIngredientInputValue.value, false)
     newIngredientInputValue.value = ""
   }
 
-  if(inputMethod.value === "all-in-one"){
+  if (inputMethod.value === "all-in-one") {
     store.activeRecipe.updateIngredients(newIngredientInputValue.value, true)
   }
 
-  if(activeSolutionMultiplier.value){
+  if (activeSolutionMultiplier.value) {
     updateSolution(activeSolutionMultiplier.value)
   }
 
   localStorage.setItem("recipe", JSON.stringify(store.recipes.map(recipe => recipe.getMinimalObject())))
 }
 
-function selectInputType(inputType){
+function selectInputType(inputType) {
   inputMethod.value = inputType
 
 
-  if(inputType === "all-in-one"){
+  if (inputType === "all-in-one") {
     newIngredientInputValue.value = store.activeRecipe.ingredientsToTextarea()
   }
-  else if(inputType === "one-by-one"){
+  else if (inputType === "one-by-one") {
     newIngredientInputValue.value = ""
   }
 }
@@ -53,11 +53,11 @@ function selectInputType(inputType){
 function removeIngredient(index) {
   store.activeRecipe.removeIngredient(index);
 
-  if(inputMethod.value === "all-in-one"){
+  if (inputMethod.value === "all-in-one") {
     newIngredientInputValue.value = store.activeRecipe.ingredientsToTextarea()
   }
 
-  if(activeSolutionMultiplier.value){
+  if (activeSolutionMultiplier.value) {
     updateSolution(activeSolutionMultiplier.value)
   }
 
@@ -66,9 +66,8 @@ function removeIngredient(index) {
 
 function showSolution(multiplier, e) {
 
-
   // Click on the same button twice - hide solution
-  if(activeSolutionButton.value === e.target){
+  if (activeSolutionButton.value === e.target) {
     activeSolutionButton.value.classList.remove("active")
     activeSolutionButton.value = null
     solution.value = null
@@ -76,9 +75,8 @@ function showSolution(multiplier, e) {
     return
   }
 
-
   // Already opened another - clean up old
-  if(activeSolutionButton.value){
+  if (activeSolutionButton.value) {
     activeSolutionButton.value.classList.remove("active")
   }
 
@@ -90,8 +88,8 @@ function showSolution(multiplier, e) {
 }
 
 
-function updateSolution(multiplier){
-    const newRecipe = new Recipe()
+function updateSolution(multiplier) {
+  const newRecipe = new Recipe()
 
   store.activeRecipe.ingredients.forEach(item => {
     const transformedString = multiplyNumberInString(item.textFormat, multiplier)
@@ -112,101 +110,101 @@ function multiplyNumberInString(text, multiplier) {
 
 <template>
 
-    <div class="tabs">
-      <div class="tab" @click="selectInputType('one-by-one')" :class="{ selected: inputMethod === 'one-by-one'}">Jedan po jedan sastojak</div>
-      <div class="tab" @click="selectInputType('all-in-one')" :class="{ selected: inputMethod === 'all-in-one'}">Ceo recept odjedanput</div>
+  <div class="tabs">
+    <div class="tab" @click="selectInputType('one-by-one')" :class="{ selected: inputMethod === 'one-by-one' }">Jedan po
+      jedan sastojak</div>
+    <div class="tab" @click="selectInputType('all-in-one')" :class="{ selected: inputMethod === 'all-in-one' }">Ceo
+      recept odjedanput</div>
+  </div>
+
+  <section class="input-box" :class="inputMethod">
+
+    <template v-if="inputMethod === 'one-by-one'">
+      <input type="text" v-model="newIngredientInputValue" @keyup.enter="addIngredient" /> <button
+        @click="addIngredient">+</button>
+    </template>
+
+
+    <template v-if="inputMethod === 'all-in-one'">
+      <textarea type="text"
+        v-model="newIngredientInputValue"> {{ store?.activeRecipe.ingredientsToTextarea() }} </textarea> <button
+        @click="addIngredient">Gotovo</button>
+    </template>
+
+  </section>
+
+  <section class="recipe">
+    <div v-for="(item, index) in store?.activeRecipe.ingredients" class="recipe-item item">
+
+
+      <template v-if="!item.isHeader">
+        <div class="item-text">
+          {{ item.textFormat }} <span class="item-mass" v-if="item.ingredientMass"> ({{ item.ingredientMass }} g)</span>
+        </div>
+
+        <button @click="removeIngredient(index)">x</button>
+      </template>
+
+
+
+      <template v-else>
+        <h3>{{ item.textFormat }}</h3>
+      </template>
+
+
     </div>
 
-    <section class="input-box" :class="inputMethod">
+    <div class="mass">
+      {{ store?.activeRecipe?.getMass() }}
+    </div>
 
-      <template v-if="inputMethod === 'one-by-one'">
-        <input  type="text" v-model="newIngredientInputValue" @keyup.enter="addIngredient" /> <button @click="addIngredient">+</button>
+
+  </section>
+
+
+  <section class="buttons">
+    <button class="button" @click="(e) => showSolution(0.25, e)">1/4 Četvrtina</button>
+    <button class="button" @click="(e) => showSolution(0.33333333, e)">1/3 Trećina</button>
+    <button class="button" @click="(e) => showSolution(0.5, e)">1/2 Pola</button>
+    <button class="button" @click="(e) => showSolution(0.66666666, e)">2/3 Dve trećine</button>
+    <button class="button" @click="(e) => showSolution(0.75, e)">3/4 Tri četvrtine</button>
+    <button class="button" @click="(e) => showSolution(1.25, e)">1 1/4 (1 + jedna četvrtina)
+
+    </button>
+    <button class="button" @click="(e) => showSolution(1.5, e)">1.5x Pola više</button>
+    <button class="button" @click="(e) => showSolution(2, e)">X2 Duplo</button>
+    <button class="button" @click="(e) => showSolution(2.5, e)">X2.5 2 Ipo puta više</button>
+    <button class="button" @click="(e) => showSolution(3, e)">X3 3 puta više</button>
+    <button class="button" @click="(e) => showSolution(4, e)">X4 4 puta više</button>
+  </section>
+
+  <section class="solution" v-if="solution">
+    <div v-for="item in solution.ingredients" class="solution-item item">
+
+
+      <template v-if="!item.isHeader">
+        <div class="item-text">
+          {{ item.textFormat }} <span class="item-mass" v-if="item.ingredientMass"> ({{ item.ingredientMass }} g)</span>
+        </div>
       </template>
 
 
-      <template v-if="inputMethod === 'all-in-one'">
-        <textarea type="text" v-model="newIngredientInputValue"> {{ store?.activeRecipe.ingredientsToTextarea() }} </textarea> <button @click="addIngredient">Gotovo</button>
+      <template v-else>
+        <h3>{{ item.textFormat }}</h3>
       </template>
 
-    </section>
+    </div>
 
-    <section class="recipe">
-      <div v-for="(item, index) in store?.activeRecipe.ingredients" class="recipe-item item">
+    <div class="mass">
+      {{ solution?.getMass() }}
+    </div>
 
-
-        <template v-if="!item.isHeader">
-          <div class="item-text">
-            {{ item.textFormat }} <span v-if="item.ingredientMass">  ~ {{ item.ingredientMass }}g</span>
-          </div>
-
-          <button @click="removeIngredient(index)">x</button>
-        </template>
-
-
-
-        <template v-else>
-          <h3>{{ item.textFormat }}</h3>
-        </template>
-
-
-      </div>
-
-      <div class="mass">
-        {{ store?.activeRecipe?.getMass() }}
-      </div>
-
-
-    </section>
-
-
-    <section class="buttons">
-      <button class="button" @click="(e) => showSolution(0.25, e)">1/4 Četvrtina</button>
-      <button class="button" @click="(e) => showSolution(0.33333333, e)">1/3 Trećina</button>
-      <button class="button" @click="(e) => showSolution(0.5, e)">1/2 Pola</button>
-      <button class="button" @click="(e) => showSolution(0.66666666, e)">2/3 Dve trećine</button>
-      <button class="button" @click="(e) => showSolution(0.75, e)">3/4 Tri četvrtine</button>
-      <button class="button" @click="(e) => showSolution(1.25, e)">1 1/4 (1 + jedna četvrtina)
-
-      </button>
-      <button class="button" @click="(e) => showSolution(1.5, e)">1.5x Pola više</button>
-      <button class="button" @click="(e) => showSolution(2, e)">X2 Duplo</button>
-      <button class="button" @click="(e) => showSolution(2.5, e)">X2.5 2 Ipo puta više</button>
-      <button class="button" @click="(e) => showSolution(3, e)">X3 3 puta više</button>
-      <button class="button" @click="(e) => showSolution(4, e)">X4 4 puta više</button>
-    </section>
-
-    <section class="solution" v-if="solution">
-      <div v-for="item in solution.ingredients" class="solution-item item">
-
-
-        <template v-if="!item.isHeader">
-          <div class="item-text">
-            {{ item.textFormat }} <span v-if="item.ingredientMass">  ~ {{ item.ingredientMass }}g</span>
-          </div>
-
-          <button @click="removeIngredient(index)">x</button>
-        </template>
-
-
-
-        <template v-else>
-          <h3>{{ item.textFormat }}</h3>
-        </template>
-
-      </div>
-
-      <div class="mass">
-        {{ solution?.getMass() }} kg
-      </div>
-
-    </section>
+  </section>
 
 </template>
 
 
 <style lang="scss" scoped>
-
-
 .input-box {
   display: flex;
   gap: .5rem;
@@ -240,9 +238,18 @@ function multiplyNumberInString(text, multiplier) {
   display: flex;
   flex-wrap: wrap;
   gap: 20px;
+
+  .solution-item {
+    padding-inline: 1rem;
+
+    .item-mass {
+      padding-inline-start: .5rem;
+      font-weight: 600;
+    }
+  }
 }
 
-.tabs{
+.tabs {
   margin-top: 1rem;
   display: flex;
   align-items: center;
@@ -250,20 +257,20 @@ function multiplyNumberInString(text, multiplier) {
   gap: 2px;
   margin-bottom: 1rem;
 
- .tab {
+  .tab {
     border: 1px solid #F082AC;
     border-radius: .5rem;
     padding: 1rem;
     cursor: pointer;
     transition: 0.3s;
- }
+  }
 
- .tab.selected {
+  .tab.selected {
     background-color: #EA4C89;
     color: white;
   }
 
-  .tab:hover:not(.tab.selected){
+  .tab:hover:not(.tab.selected) {
     background-color: #EA4C89;
     color: white;
   }
@@ -282,7 +289,7 @@ textarea {
   padding-inline-start: .5rem;
 }
 
-.all-in-one{
+.all-in-one {
   flex-direction: column;
 }
 
@@ -294,11 +301,9 @@ textarea {
 }
 
 
-.mass{
+.mass {
   width: 100%;
   font-weight: bold;
   font-size: 2rem;
 }
-
-
 </style>

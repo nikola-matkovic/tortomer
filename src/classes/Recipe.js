@@ -1,57 +1,53 @@
-import Ingredient from "./Ingredient"
-import {removeWrongCharactersFromIngString} from "@/functions/helpers"
+import Ingredient from "./Ingredient";
+import { removeWrongCharactersFromIngString } from "@/functions/helpers";
 
 export default class Recipe {
   constructor(minimalObject = "") {
-
-    if(minimalObject === ""){
+    if (minimalObject === "") {
       this.id = Date.now();
-      this.name = ""
-      this.ingredients = []
-    }
-
-    else{
+      this.name = "";
+      this.ingredients = [];
+    } else {
       this.name = minimalObject.name;
-      this.id = minimalObject.id
-      this.ingredients = minimalObject.ingredients.map(ing => new Ingredient(ing))
+      this.id = minimalObject.id;
+      this.ingredients = minimalObject.ingredients.map(
+        (ing) => new Ingredient(ing),
+      );
     }
-
   }
 
-  removeIngredient(i){
-    this.ingredients = this.ingredients.filter((_, index) => i != index)
+  removeIngredient(i) {
+    this.ingredients = this.ingredients.filter((_, index) => i != index);
   }
 
-  getMass(){
+  getMass() {
+    const masses = this.ingredients?.map((i) => i.ingredientMass || 0);
 
-    const masses = this.ingredients?.map(i => i.ingredientMass || 0)
+    const grams = masses?.reduce((a, b) => a + b, 0);
 
-    const grams = masses?.reduce( (a, b) => a + b, 0 )
+    if (grams > 1000) return (grams / 1000).toFixed(3) + " kg";
 
-    if(grams > 1000) return (grams / 1000).toFixed(3) + " kg"
-
-    return grams + " g"
+    return grams.toFixed(0) + " g";
   }
 
-  getMinimalObject(){
-    let obj =  {
+  getMinimalObject() {
+    let obj = {
       name: this.name,
       id: this.id,
-      ingredients: this.ingredients.map(i => i.textFormat)
-    }
+      ingredients: this.ingredients.map((i) => i.textFormat),
+    };
 
-    return obj
+    return obj;
   }
 
-  ingredientsToTextarea(){
-    const ingredientPlainTextArray = this.ingredients.map(i => i.textFormat )
-    const ingredientsTextWithNewLines = ingredientPlainTextArray.join("\n")
-    return ingredientsTextWithNewLines
+  ingredientsToTextarea() {
+    const ingredientPlainTextArray = this.ingredients.map((i) => i.textFormat);
+    const ingredientsTextWithNewLines = ingredientPlainTextArray.join("\n");
+    return ingredientsTextWithNewLines;
   }
-
 
   removeAllIngredients() {
-    this.ingredients = []
+    this.ingredients = [];
   }
 
   isInsideParentheses(parenthesesRanges, index) {
@@ -60,46 +56,38 @@ export default class Recipe {
 
   // Plain text can be separated by \n
   updateIngredients(plainTextIngredient, updateInPlace = false) {
-
-    const updated = []
+    const updated = [];
 
     if (!plainTextIngredient) return;
 
     const trimmed = removeWrongCharactersFromIngString(plainTextIngredient);
 
     let lines = [];
-    let ings = []
+    let ings = [];
 
-    if(trimmed.indexOf("\n") != -1){
-      lines = trimmed.split("\n")
-    }
-    else{
-      lines.push(trimmed)
+    if (trimmed.indexOf("\n") != -1) {
+      lines = trimmed.split("\n");
+    } else {
+      lines.push(trimmed);
     }
 
     // can be only one if single input is active
-    lines.forEach(line => {
-
+    lines.forEach((line) => {
       let commaSeparatedStrings = line.split(",");
 
+      commaSeparatedStrings.forEach((commaSeparatedString) => {
+        const finnalCut = commaSeparatedString.split(":");
 
-      commaSeparatedStrings.forEach(commaSeparatedString => {
-        const finnalCut = commaSeparatedString.split(":")
-
-        if(finnalCut.length === 2){
-
-          ings.push((finnalCut[0] + ":"))
-          ings.push((finnalCut[1]))
-        }
-        else{
-          ings.push(finnalCut[0])
+        if (finnalCut.length === 2) {
+          ings.push(finnalCut[0] + ":");
+          ings.push(finnalCut[1]);
+        } else {
+          ings.push(finnalCut[0]);
         }
       });
+    });
 
-    })
-
-    ings.forEach(ingredient => {
-
+    ings.forEach((ingredient) => {
       const DASH_REGEX = /[-–—−]/;
 
       // 1. Pronađi opsege zagrada
@@ -113,11 +101,10 @@ export default class Recipe {
         }
       }
 
-
       // 2. Pronađi brojeve (uključujući razlomke)
       const numberRegex = /\d+\/\d+|\d+(?:[.,]\d+)?/g;
 
-      const matches = [...ingredient.matchAll(numberRegex)].filter(m => {
+      const matches = [...ingredient.matchAll(numberRegex)].filter((m) => {
         const idx = m.index;
         const len = m[0].length;
 
@@ -136,7 +123,7 @@ export default class Recipe {
 
       // 3. Ako nema validnih brojeva → ceo string je jedan sastojak
       if (matches.length === 0) {
-        updated.push(new Ingredient(ingredient.trim()))
+        updated.push(new Ingredient(ingredient.trim()));
         return;
       }
 
@@ -147,20 +134,18 @@ export default class Recipe {
 
         const part = ingredient.slice(start, end).trim();
 
-
-        console.log("here", start, end, part)
+        console.log("here", start, end, part);
 
         if (part) {
-          updated.push(new Ingredient(part))
+          updated.push(new Ingredient(part));
         }
       }
-    })
+    });
 
-    if(updateInPlace){
+    if (updateInPlace) {
       this.ingredients = updated;
-    }
-    else{
-      this.ingredients.push(...updated)
+    } else {
+      this.ingredients.push(...updated);
     }
   }
 }
