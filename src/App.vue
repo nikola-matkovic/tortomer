@@ -4,14 +4,14 @@ import { onMounted } from 'vue';
 import { useRecipeStore } from './stores/recipes';
 
 const store = useRecipeStore();
-import Recipe from "./classes/Recipe.js"
+import Recipe from "./classes/Recipe.ts"
 
 onMounted(() => {
   const local = localStorage.getItem("recipe")
 
   if (!local || local === "null") return;
 
-  let localArray = JSON.parse(local);
+  const localArray = JSON.parse(local);
 
   localArray.forEach(r => {
 
@@ -31,12 +31,13 @@ onMounted(() => {
 
 
 <style lang="scss">
-
 section {
   margin-bottom: 1rem;
 }
 
-a, a:hover, a:active{
+a,
+a:hover,
+a:active {
   color: inherit;
   text-decoration: none;
 }
@@ -83,7 +84,7 @@ button:focus {
   padding: .5rem;
 }
 
-.button.active{
+.button.active {
   background-color: #5e1e37;
 }
 
@@ -96,6 +97,4 @@ input:focus-visible {
   height: 40px;
   border: 1px solid #EA4C89;
 }
-
-
 </style>

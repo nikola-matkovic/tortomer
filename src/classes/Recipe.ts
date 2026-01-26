@@ -1,6 +1,7 @@
 import Ingredient from "./Ingredient";
 import { removeWrongCharactersFromIngString } from "@/functions/helpers";
 
+
 export default class Recipe {
   constructor(minimalObject = "") {
     if (minimalObject === "") {

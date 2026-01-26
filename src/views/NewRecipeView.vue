@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useRecipeStore } from '@/stores/recipes';
 import Recipe from '@/classes/Recipe';
 import router from '@/router';
@@ -20,16 +20,15 @@ function addIngredients() {
 
 <template>
 
-<section class="input-box">
+  <section class="input-box">
     <input placeholder="Ime torte" type="text" v-model="recipeName">
-</section>
+  </section>
 
-<button @click="addIngredients">Dodaj sastojke</button>
+  <button @click="addIngredients">Dodaj sastojke</button>
 
 </template>
 
 <style scoped lang="scss">
-
 .input-box {
   display: flex;
   gap: .5rem;
@@ -38,5 +37,4 @@ function addIngredients() {
 .input-box input {
   flex-grow: 1;
 }
-
 </style>

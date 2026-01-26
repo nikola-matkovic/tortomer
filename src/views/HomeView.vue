@@ -1,4 +1,4 @@
-<script setup>
+<script setup lang="ts">
 import { useRecipeStore } from '@/stores/recipes';
 import { onMounted } from 'vue';
 import { RouterLink } from 'vue-router';
@@ -15,7 +15,7 @@ onMounted(() => {
   <div class="selector">
     <div class="buttons">
 
-      <RouterLink v-for="recipe in store.recipes" :to="`/recipe/${recipe.id}`" :key="recipe.id" >
+      <RouterLink v-for="recipe in store.recipes" :to="`/recipe/${recipe.id}`" :key="recipe.id">
         <div class="recipe-card">
           {{ recipe.name }}
         </div>
@@ -31,7 +31,6 @@ onMounted(() => {
 
 
 <style lang="scss" scoped>
-
 .selector .buttons {
   display: flex;
   flex-direction: column;
@@ -53,5 +52,4 @@ onMounted(() => {
   padding: .5rem;
 
 }
-
 </style>
